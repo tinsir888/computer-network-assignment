@@ -9,50 +9,50 @@ int main()
 {
 
 
-	//1.³õÊ¼»¯²¢´´½¨¿Í»§¶ËÌ×½Ó×Ö
+	//1.åˆå§‹åŒ–å¹¶åˆ›å»ºå®¢æˆ·ç«¯å¥—æ¥å­—
 
-	WSADATA wsaData = { 0 };//´æ·ÅÌ×½Ó×ÖĞÅÏ¢µÄÊı¾İ½á¹¹
-	if (WSAStartup(MAKEWORD(2, 2), &wsaData))//Ì×½Ó×Ö³õÊ¼»¯
+	WSADATA wsaData = { 0 };//å­˜æ”¾å¥—æ¥å­—ä¿¡æ¯çš„æ•°æ®ç»“æ„
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData))//å¥—æ¥å­—åˆå§‹åŒ–
 	{
 		printf("WSAStartup failed with error code: %d\n", WSAGetLastError());
 		return -1;
 	}
-	//ÅĞ¶ÏÌ×½Ó×Ö°æ±¾
+	//åˆ¤æ–­å¥—æ¥å­—ç‰ˆæœ¬
 	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2)
 	{
 		printf("wVersion was not 2.2\n");
 		return -1;
 	}
 
-	//´´½¨¿Í»§¶ËÌ×½Ó×Ö£¬Ö¸¶¨µØÖ·ÀàĞÍ¡¢·şÎñÀàĞÍºÍĞ­Òé£¨TCP£©
-	SOCKET ClientSocket = INVALID_SOCKET;//ÉùÃ÷ÓÃÓÚÁ¬½ÓµÄ¿Í»§¶ËÌ×½Ó×Ö
-	ClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);//³õÊ¼»¯¸ÃÌ×½Ó×Ö
-	if (ClientSocket == INVALID_SOCKET)//ÅĞ¶Ï³õÊ¼»¯ÊÇ·ñ³É¹¦£¬·ñÔòÍË³ö³ÌĞò
+	//åˆ›å»ºå®¢æˆ·ç«¯å¥—æ¥å­—ï¼ŒæŒ‡å®šåœ°å€ç±»å‹ã€æœåŠ¡ç±»å‹å’Œåè®®ï¼ˆTCPï¼‰
+	SOCKET ClientSocket = INVALID_SOCKET;//å£°æ˜ç”¨äºè¿æ¥çš„å®¢æˆ·ç«¯å¥—æ¥å­—
+	ClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);//åˆå§‹åŒ–è¯¥å¥—æ¥å­—
+	if (ClientSocket == INVALID_SOCKET)//åˆ¤æ–­åˆå§‹åŒ–æ˜¯å¦æˆåŠŸï¼Œå¦åˆ™é€€å‡ºç¨‹åº
 	{
 		printf("socket failed with error code: %d\n", WSAGetLastError());
 		return -1;
 	}
 
-	//2.ÓÃ»§ÔÚÃüÁîĞĞ²Ù×÷£¬ÉèÖÃÒªÁ¬½Óµ½µÄ·şÎñÆ÷µÄIPºÍ¶Ë¿ÚºÅ
+	//2.ç”¨æˆ·åœ¨å‘½ä»¤è¡Œæ“ä½œï¼Œè®¾ç½®è¦è¿æ¥åˆ°çš„æœåŠ¡å™¨çš„IPå’Œç«¯å£å·
 
-	//ÊäÈë·şÎñÆ÷IP£¨ÒªÁ¬½Óµ½µÄIPµØÖ·£©
+	//è¾“å…¥æœåŠ¡å™¨IPï¼ˆè¦è¿æ¥åˆ°çš„IPåœ°å€ï¼‰
 	printf("Please input server IP:");
-	char IP[32] = { 0 };//IPµØÖ·×Ö·û´®»º³åÇø
-	gets_s(IP);//¶ÁÈ¡ÊäÈëµ½»»ĞĞ·ûÎªÖ¹
-	//ÊäÈëÁÄÌìµÄÓÃ»§Ãû
+	char IP[32] = { 0 };//IPåœ°å€å­—ç¬¦ä¸²ç¼“å†²åŒº
+	gets_s(IP);//è¯»å–è¾“å…¥åˆ°æ¢è¡Œç¬¦ä¸ºæ­¢
+	//è¾“å…¥èŠå¤©çš„ç”¨æˆ·å
 	printf("Please input your name:");
 	char name[32] = { 0 };
 	gets_s(name);
-	USHORT uPort = 18000;//·şÎñ¶Ë¶Ë¿Ú
+	USHORT uPort = 18000;//æœåŠ¡ç«¯ç«¯å£
 
-	//ÉèÖÃÒªÁ¬½Óµ½µÄ·şÎñÆ÷µÄµØÖ·£¬°üÀ¨IPºÍ¶Ë¿ÚºÅ
-	SOCKADDR_IN ServerAddr = { 0 };//´æ·Å·şÎñ¶ËµØÖ·µÄÊı¾İ½á¹¹
-	ServerAddr.sin_family = AF_INET;//Ö¸¶¨µØÖ·ÀàĞÍ£¬ÕâÀïÊÇIPv4
-	ServerAddr.sin_port = htons(uPort);//Ö¸¶¨¶Ë¿Ú
-	ServerAddr.sin_addr.S_un.S_addr = inet_addr(IP);//Ö¸¶¨·şÎñÆ÷µØÖ·£¬Ò»¸öUINT£¨¼´unsigned long£©ÀàĞÍ
+	//è®¾ç½®è¦è¿æ¥åˆ°çš„æœåŠ¡å™¨çš„åœ°å€ï¼ŒåŒ…æ‹¬IPå’Œç«¯å£å·
+	SOCKADDR_IN ServerAddr = { 0 };//å­˜æ”¾æœåŠ¡ç«¯åœ°å€çš„æ•°æ®ç»“æ„
+	ServerAddr.sin_family = AF_INET;//æŒ‡å®šåœ°å€ç±»å‹ï¼Œè¿™é‡Œæ˜¯IPv4
+	ServerAddr.sin_port = htons(uPort);//æŒ‡å®šç«¯å£
+	ServerAddr.sin_addr.S_un.S_addr = inet_addr(IP);//æŒ‡å®šæœåŠ¡å™¨åœ°å€ï¼Œä¸€ä¸ªUINTï¼ˆå³unsigned longï¼‰ç±»å‹
 
 	printf("connecting......\n");
-	//Á¬½Ó·şÎñÆ÷£¬Ê§°ÜÔòÍË³ö³ÌĞò
+	//è¿æ¥æœåŠ¡å™¨ï¼Œå¤±è´¥åˆ™é€€å‡ºç¨‹åº
 	if (SOCKET_ERROR == connect(ClientSocket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)))
 	{
 		printf("connect failed with error code: %d\n", WSAGetLastError());
@@ -60,17 +60,17 @@ int main()
 		WSACleanup();
 		return 0;
 	}
-	//Á¬½Ó³É¹¦Ôò´òÓ¡·şÎñ¶ËµÄµØÖ·ºÍ¶Ë¿ÚºÅ
+	//è¿æ¥æˆåŠŸåˆ™æ‰“å°æœåŠ¡ç«¯çš„åœ°å€å’Œç«¯å£å·
 	printf("connecting server successfully IP:%s Port:%d\n\n",
 		inet_ntoa(ServerAddr.sin_addr), htons(ServerAddr.sin_port));
 
 	
-	//3.ÊÕ·¢ÏûÏ¢£¬TCPÊ¹ÓÃsendºÍrecvº¯Êı
+	//3.æ”¶å‘æ¶ˆæ¯ï¼ŒTCPä½¿ç”¨sendå’Œrecvå‡½æ•°
 
-	char buffer[4096] = { 0 };//´æ·ÅÏûÏ¢µÄ»º³åÇø
-	int iRecvLen = 0;//ÊÕµ½µÄ×Ö½ÚÊı
-	int iSnedLen = 0;//·¢ËÍµÄ×Ö½ÚÊı
-	//×î¿ªÊ¼·¢ËÍÓÃ»§Ãû¸ø¶Ô·½£¬·µ»ØÊµ¼Ê·¢ËÍµÄ×Ö½ÚÊı
+	char buffer[4096] = { 0 };//å­˜æ”¾æ¶ˆæ¯çš„ç¼“å†²åŒº
+	int iRecvLen = 0;//æ”¶åˆ°çš„å­—èŠ‚æ•°
+	int iSnedLen = 0;//å‘é€çš„å­—èŠ‚æ•°
+	//æœ€å¼€å§‹å‘é€ç”¨æˆ·åç»™å¯¹æ–¹ï¼Œè¿”å›å®é™…å‘é€çš„å­—èŠ‚æ•°
 	iSnedLen = send(ClientSocket, name, strlen(name), 0);
 	if (SOCKET_ERROR == iSnedLen)
 	{
@@ -80,7 +80,7 @@ int main()
 		return 0;
 	}
 	else printf("Successfully sent your name to the server!\n");
-	//È»ºó½ÓÊÕ¶Ô·½µÄÓÃ»§Ãû£¬Ò²·µ»ØÊµ¼Ê½ÓÊÕµÄ×Ö½ÚÊı
+	//ç„¶åæ¥æ”¶å¯¹æ–¹çš„ç”¨æˆ·åï¼Œä¹Ÿè¿”å›å®é™…æ¥æ”¶çš„å­—èŠ‚æ•°
 	char nameOther[32] = { 0 };
 	iRecvLen = recv(ClientSocket, nameOther, sizeof(nameOther), 0);
 	if (SOCKET_ERROR == iRecvLen)
@@ -91,22 +91,23 @@ int main()
 		return 0;
 	}
 	else printf("Successfully sent the server's name to you!\n\n\n\n");
-	//½ÓÊÕ×Ö½ÚÁ÷µÄÄ©Î²Òª¼ÓÉÏ"\0"²ÅÄÜ¹¹³É×Ö·û´®
+	//æ¥æ”¶å­—èŠ‚æµçš„æœ«å°¾è¦åŠ ä¸Š"\0"æ‰èƒ½æ„æˆå­—ç¬¦ä¸²
 	strcat_s(nameOther, "\0");
 
-	time_t Time_now = time(0);//»ñÈ¡Ê±¼ä
+	time_t Time_now;
 
-	//½ÓÏÂÀ´½øÈëÏûÏ¢Ñ­»·£¬·¢ËÍºÍ½ÓÊÕÁÄÌìÏûÏ¢
+	//æ¥ä¸‹æ¥è¿›å…¥æ¶ˆæ¯å¾ªç¯ï¼Œå‘é€å’Œæ¥æ”¶èŠå¤©æ¶ˆæ¯
 	while (1)
 	{
 		memset(buffer, 0, sizeof(buffer));
-		//ÊäÈëÏûÏ¢
+		//è¾“å…¥æ¶ˆæ¯
 		printf("%s: ", name);
 		gets_s(buffer);
+		Time_now = time(0);//è·å–æ—¶é—´
 		char* msg = ctime(&Time_now);
 		char* sendingTime = msg;
 		strncat(msg, buffer, sizeof(buffer));
-		//ÊäÈë"bye"Ê±ÍË³öÁÄÌì
+		//è¾“å…¥"bye"æ—¶é€€å‡ºèŠå¤©
 		if (strcmp(buffer, "bye") == 0) {
 			iSnedLen = send(ClientSocket, buffer, strlen(buffer), 0);
 			if (SOCKET_ERROR == iSnedLen)
@@ -118,7 +119,7 @@ int main()
 			}
 			break;
 		}
-		//·¢ËÍÏûÏ¢
+		//å‘é€æ¶ˆæ¯
 		iSnedLen = send(ClientSocket, msg, strlen(msg), 0);
 		if (SOCKET_ERROR == iSnedLen)
 		{
@@ -129,7 +130,7 @@ int main()
 		}
 		printf("Successfully send message to Server: %s\nSend time: %s\n", nameOther, sendingTime);
 		memset(buffer, 0, sizeof(buffer));
-		//½ÓÊÕÏûÏ¢²¢´òÓ¡µ½stdout
+		//æ¥æ”¶æ¶ˆæ¯å¹¶æ‰“å°åˆ°stdout
 		iRecvLen = recv(ClientSocket, buffer, sizeof(buffer), 0);
 		if (SOCKET_ERROR == iRecvLen)
 		{
@@ -142,9 +143,9 @@ int main()
 		printf("%s: %s\n", nameOther, buffer);
 
 	}
-	//¹Ø±ÕsocketÁ¬½Ó
+	//å…³é—­socketè¿æ¥
 	closesocket(ClientSocket);
-	//ÊÍ·Åsocket DLL×ÊÔ´
+	//é‡Šæ”¾socket DLLèµ„æº
 	WSACleanup();
 	return 0;
 }
