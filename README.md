@@ -5,4 +5,4 @@ In the 5th semester of CC NKU. A compulsory course.
 Using UDP protocol to achieve reliable transmission.
 
 ## Lab 3-2
-Sliding Window Protocol
+Sliding Window Protocol(fixed length)
