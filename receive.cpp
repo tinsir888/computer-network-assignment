@@ -1,48 +1,26 @@
 #include "reliableudp.h"
-using namespace std;
-SOCKET server, server_2;
-static char pindex[2];		// 记录滑动窗的最开始的位置
-int pcknum = 0;
+SOCKET server;
+int cntpkg = 0;
+char downloadfile[maxn];
 string filename;
-int pkgsure = 0;
-// 等待连接
-void WaitConnection()
+int confirm = 0;
+// checksum
+unsigned char checksum(char *ch, int len)
 {
-	while (1)
+	if (len == 0) return 0xff;
+	unsigned char cksum = ch[0];
+	for (int i = 1; i < len; i++)
 	{
-		char recv[2];
-		int clientlen = sizeof(clientAddr);
-		while (recvfrom(server, recv, 2, 0, (sockaddr *)&clientAddr, &clientlen) == SOCKET_ERROR);
-		if (recv[0] != SEQ1)
-			continue;
-		cout << "接收端接收到第一次握手。" << endl;
-		bool flag = CONNECTSUCCESS;
-		while (1)
-		{
-			memset(recv, 0, 2);
-			char send[2];
-			send[0] = SEQ2;
-			send[1] = ACK2;
-			sendto(server, send, 2, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
-			cout << "接收端发送第二次握手。" << endl;
-			while (recvfrom(server, recv, 2, 0, (sockaddr *)&clientAddr, &clientlen) == SOCKET_ERROR);
-			if (recv[0] == SEQ1)
-				continue;
-			if (recv[0] != SEQ3 || recv[1] != ACK3)
-			{
-				cout << "连接错误。\n请重启发送端！" << endl;
-				flag = CONNECTFAIL;
-			}
-			break;
-		}
-		if (!flag)
-			continue;
-		break;
+		unsigned int tmp = cksum + (unsigned char)ch[i];
+		tmp = (tmp >> 8) + (tmp & 0xff);
+		tmp = (tmp >> 8) + (tmp & 0xff);
+		cksum = tmp;
 	}
+	return ~cksum;
 }
-// 开启服务器
-int StartServer()
+int main()
 {
+	//先启动接收端
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 	{
@@ -50,174 +28,168 @@ int StartServer()
 		return -1;
 	}
 	server = socket(AF_INET, SOCK_DGRAM, 0);
-
 	if (server == SOCKET_ERROR)
 	{
 		cout << "套接字错误：" << WSAGetLastError() << endl;
 		return -1;
 	}
-	int Port = 1439;
 	serverAddr.sin_addr.s_addr = htons(INADDR_ANY);
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(Port);
-
+	serverAddr.sin_family = AF_INET;//ipv4
+	serverAddr.sin_port = htons(1439);
 	if (bind(server, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
 	{
 		cout << "绑定端口错误：" << WSAGetLastError() << endl;
 		return -1;
 	}
 	cout << "成功启动接收端！" << endl;
-	return 1;
-}
-// 等待挥手断开
-void WaitDisconnection(SOCKET server)
-{
-	while (1)
+	//等待发送端连接接收端
+	cout << "等待发送端连接..." << endl;
+	while (true)
 	{
-		char recv[2];
+		char receivepkg[2];
 		int clientlen = sizeof(clientAddr);
-		while (recvfrom(server, recv, 2, 0, (sockaddr *)&clientAddr, &clientlen) == SOCKET_ERROR);
-		if (recv[0] != WAVE1)
+		while (recvfrom(server, receivepkg, 2, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR)
 			continue;
-		cout << "接收端收到一次挥手。" << endl;
-		char send[2];
-		send[0] = WAVE2;
-		send[1] = ACKW2;
-		sendto(server, send, 2, 0, (sockaddr *)&clientAddr, sizeof(clientAddr));
+		if (receivepkg[0] != '1')//first hand shake
+			continue;
+		cout << "接收端接收到第一次握手。" << endl;
+		bool flag = true;//first hand shake confirmed.
+		while (true)
+		{
+			memset(receivepkg, 0, 2);
+			char send[2];
+			send[0] = '3';//SEQ2
+			send[1] = '2';//ACK=SEQ1+1
+			sendto(server, send, 2, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
+			cout << "接收端发送第二次握手。" << endl;
+			while (recvfrom(server, receivepkg, 2, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR);
+			if (receivepkg[0] == '1')//SEQ1, SYN
+				continue;
+			if (receivepkg[0] != '5' || receivepkg[1] != '4')//SEQ3,ACK3
+			{
+				cout << "连接错误。\n请重启发送端！" << endl;
+				flag = false;
+			}
+			break;
+		}
+		if (!flag)
+			continue;
 		break;
 	}
-	cout << "发送端断开连接。" << endl;
-}
-// checksum
-unsigned char PkgCheck(char *arr, int len)
-{
-	if (len == 0)
-		return ~(0);
-	unsigned char ret = arr[0];
-	for (int i = 1; i < len; i++)
-	{
-		unsigned int tmp = ret + (unsigned char)arr[i];
-		tmp = tmp / (1 << 8) + tmp % (1 << 8);
-		tmp = tmp / (1 << 8) + tmp % (1 << 8);
-		ret = tmp;
-	}
-	return ~ret;
-}
-// 接收消息
-void Recvmessage(SOCKET server)
-{
+	cout << "成功连接到发送端！" << endl;
+	//接收文件名
+	char name[50];
 	int clientlen = sizeof(clientAddr);
-	char length[2];
-	while (recvfrom(server, length, 2, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR);
-	int pcklen = length[0] * 128 + length[1];
-	pindex[0] = 0;
-	pindex[1] = -1;
+	while (recvfrom(server, name, 50, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR)
+		continue;
+	for (int i = 0; name[i] != '$'; i++){
+		filename += name[i];
+	}
+	//接收文件内容
+	char tot_pkg[2];
+	while (recvfrom(server, tot_pkg, 2, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR);
+	int totpkg = (int)tot_pkg[0] * 128 + tot_pkg[1];
+	cout << "数据包总个数：" << totpkg << endl;
 	int len = 0;
-	int lent;
-	while (1)
+	int curpkglen;
+	int curpkgno;
+	while (true)
 	{
-		char recv[LENGTH + CheckSum];
-		memset(recv, '\0', LENGTH + CheckSum);
-		while (1)
+		char receivepkg[pkglength];
+		memset(receivepkg, '\0', pkglength);
+		while (true)
 		{
 			int clientlen = sizeof(clientAddr);
-			int begin_time = clock();
-			bool flag = SENDSUCCESS;
-			while (recvfrom(server, recv, LENGTH + CheckSum, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR)
+			int begtimer = clock(), overtimer;
+			bool flag = true;
+			while (recvfrom(server, receivepkg, pkglength, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR)
 			{
-				int over_time = clock();
-				if (over_time - begin_time > TIMEOUT)
+				overtimer = clock();
+				if (overtimer - begtimer > timeout)
 				{
-					flag = SENDFAIL;
+					flag = false;
 					break;
 				}
 				cout << WSAGetLastError() << endl;
 			}
-			lent = recv[4] * 128 + recv[5];
+			curpkglen = ((int)receivepkg[4] * 128) + receivepkg[5];
+			curpkgno = (int)receivepkg[2] * 128 + receivepkg[3];
 			char send[3];
 			memset(send, '\0', 3);
 			// 没有超时，ACK码正确，差错检查正确
-			if (flag && recv[6] == ACKMsg && PkgCheck(recv, lent + CheckSum) == 0)
+			unsigned char cksum = checksum(receivepkg, curpkglen + pkgheader);
+			if (flag && receivepkg[6] == '%' && cksum == 0)
 			{
-				// 在滑动窗范围里
-				if (recv[2] * 128 + recv[3] <= pindex[0] * 128 + pindex[1] <= recv[2] * 128 + recv[3] + MaxScroll)
+				confirm++;
+				if (confirm == 6 || receivepkg[1] == '$')
 				{
-					// 累计确认
-					pkgsure++;
-					if (pkgsure == 5)
-					{
-						cout << "确认第 " << recv[2] * 128 + recv[3] << " 号数据包。" << endl;
-						pkgsure = 0;
-						send[0] = ACKMsg;
-						pindex[0] = recv[2];
-						pindex[1] = recv[3];
-						send[1] = recv[2];
-						send[2] = recv[3];
-						sendto(server, send, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
-					}
-					// cout << recv[2] * 128 + recv[3] << endl;
-					pcknum++;
-					break;
+					cout << "确认第 " << curpkgno << " 号数据包。" << endl;
+					confirm = 0;
+					send[0] = '%';//ACK
+					send[1] = receivepkg[2];
+					send[2] = receivepkg[3];
+					sendto(server, send, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 				}
-				else
-				{
-					cout << "数据包超过窗口限制。" << endl;
-				}
+				cntpkg++;
+				break;
 			}
-			// Something wrong. 发送NAK，重发
+			//发送NAK
 			else
 			{
-				cout << "接收数据包出现错误。" << endl;
-				send[0] = NAK;
-				send[1] = recv[2];
-				send[2] = recv[3];
+				cout << "接收 "<< curpkgno <<" 号之前的数据包出现错误。" << endl;
+				printf("校验和为: %d\n", cksum);
+				send[0] = '*';//NAK
+				send[1] = receivepkg[2];
+				send[2] = receivepkg[3];
 				sendto(server, send, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 				continue;
 			}
 		}
-		// 收到的包可能顺序不对（因为存在差错检测之后的重传）
-		// 根据它的index码确定它的位置
-		int loc = LENGTH * (recv[2] * 128 + recv[3]);
-		for (int i = CheckSum; i < lent + CheckSum; i++)
+		int loc = datalen * (receivepkg[2] * 128 + receivepkg[3]);
+		for (int i = pkgheader; i < curpkglen + pkgheader; i++)
 		{
-			message[loc + i - CheckSum] = recv[i];
+			downloadfile[loc + i - pkgheader] = receivepkg[i];
 			len++;
 		}
-		// 是不是最后一个，是就结束了
-		if (recv[1] == LAST)
+		// last package
+		if (receivepkg[1] == '$') {
+			//为什么确认最后一个数据包会死锁？
+			/*char send[3];
+			memset(send, '\0', 3);
+			cout << "确认第 " << receivepkg[2] * 128 + receivepkg[3] << " 号数据包。" << endl;
+			send[0] = '%';
+			send[1] = pos[0] = receivepkg[2];
+			send[2] = pos[1] = receivepkg[3];
+			sendto(server, send, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
+			*/
 			break;
+		}
 	}
 	// 累计确认总的包数
-	if (pcklen == pcknum)
+	if (totpkg == cntpkg)
 	{
 		cout << "没有数据包丢失！" << endl;
 	}
 	ofstream fout(filename.c_str(), ofstream::binary);
 	for (int i = 0; i < len; i++)
-		fout << message[i];
+		fout << downloadfile[i];
 	fout.close();
-}
-// 接收文件名
-void RecvName()
-{
-	char name[100];
-	int clientlen = sizeof(clientAddr);
-	while (recvfrom(server, name, 100, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR);
-	for (int i = 0; name[i] != LAST; i++)
-	{
-		filename += name[i];
-	}
-}
-int main()
-{
-	StartServer();
-	cout << "等待发送端连接..." << endl;
-	WaitConnection();
-	cout << "成功连接到发送端！" << endl;
-	RecvName();
-	Recvmessage(server);
 	cout << "成功接收文件！" << endl;
-	WaitDisconnection(server);
+	while (1)
+	{
+		char receivepkg[2];
+		clientlen = sizeof(clientAddr);
+		while (recvfrom(server, receivepkg, 2, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR);
+		if (receivepkg[0] != '7')
+			continue;
+		cout << "接收端收到一次挥手。" << endl;
+		char send[2];
+		send[1] = '8';//receiver has received sender's waving hand.
+		send[0] = '9';//reveiver wave hand
+		sendto(server, send, 2, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
+		break;
+	}
+	cout << "发送端断开连接。" << endl;
 	closesocket(server);
 	WSACleanup();
 	return 0;
