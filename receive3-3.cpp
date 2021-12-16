@@ -1,5 +1,4 @@
 #include "reliableudp.h"
-SOCKET server;
 string filename;
 int pkgnolen[maxn];//每个数据包的长度
 char downloadfile[maxn];
@@ -22,15 +21,16 @@ int main()
 		cout << "套接字错误：" << WSAGetLastError() << endl;
 		return 0;
 	}
-	int Port = 1439;
-	serverAddr.sin_addr.s_addr = htons(INADDR_ANY);
+	
+	//serverAddr.sin_addr.s_addr = htons(INADDR_ANY);
+	serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(Port);
-
+	serverAddr.sin_port = htons(12301);
+	
 	if (bind(server, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
 	{
 		cout << "绑定端口错误：" << WSAGetLastError() << endl;
-		return -1;
+		return 0;
 	}
 	cout << "成功启动接收端！" << endl;
 
@@ -80,7 +80,7 @@ int main()
 		{
 			flag = false;
 			cout << "未收到文件名。" << endl;
-			break;
+			continue;
 		}
 	}
 	if (flag)
@@ -90,9 +90,10 @@ int main()
 			filename += name[i];
 		}
 	}
+	cout << "收到文件名：" << filename << endl;
 	//接收文件
 	printf("开始接收文件内容!\n");
-	int curpkglen, curpkgno = 0, ackbefore = -1;
+	int curpkglen, curpkgno = 0;// , ackbefore = -1;
 	while (true)
 	{
 		char receivepkg[pkglength];
@@ -104,7 +105,9 @@ int main()
 			bool flag = true;
 			while (recvfrom(server, receivepkg, pkglength, 0, (sockaddr*)&clientAddr, &clientlen) == SOCKET_ERROR)
 			{
-				int over_time = clock();
+				//int over_time = clock();
+				int over_time = begin_time + timeout;
+				cout << over_time << endl;
 				if (over_time - begin_time > timeout)
 				{
 					flag = false;
@@ -113,6 +116,7 @@ int main()
 			}
 			curpkgno = receivepkg[2] * 128 + receivepkg[3];
 			curpkglen = receivepkg[4] * 128 + receivepkg[5];
+			//cout << curpkgno << endl;
 			char feedback[3];
 			memset(feedback, '\0', 3);
 			// 没有超时，ACK码正确，差错检查正确
@@ -135,8 +139,8 @@ int main()
 					curpkgno = ackbefore;
 				}
 				*/
+				//sendto(server, feedback, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 				sendto(server, feedback, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
-
 				printf("成功接收第 %d 号数据包, 数据段长度为 %d 字节\n", curpkgno, curpkglen);
 				break;
 			}
@@ -152,6 +156,7 @@ int main()
 				feedback[0] = '^';
 				feedback[1] = receivepkg[2];
 				feedback[2] = receivepkg[3];
+				//sendto(server, feedback, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 				sendto(server, feedback, 3, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 				continue;
 			}
@@ -190,11 +195,13 @@ receivedone:
 		char whfeedback[2];
 		whfeedback[0] = '9';
 		whfeedback[1] = '8';
+		//sendto(server, whfeedback, 2, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 		sendto(server, whfeedback, 2, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
 		break;
 	}
 	cout << "发送端断开连接。" << endl;
 	closesocket(server);
+	closesocket(client);//in order to route test
 	WSACleanup();
 	return 0;
 }

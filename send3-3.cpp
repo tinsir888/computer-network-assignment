@@ -1,5 +1,4 @@
 #include "reliableudp.h"
-SOCKET client;
 char uploadfile[maxn];
 int filelen = 0;
 int totpkg;
@@ -23,6 +22,33 @@ void sendpkg(char* pkgdata, int curpkgdatalen, int curpkgno, int last)
 }
 int main()
 {
+	//输入发送的文件名
+	cout << "请输入要发送的文件名：";
+	string filename;
+	cin >> filename;
+	char* sendfilename = new char[filename.length() + 1];
+	for (int i = 0; i < filename.length(); i++)
+	{
+		sendfilename[i] = filename[i];
+	}
+	sendfilename[filename.length()] = '$';
+	//sendto(client, sendfilename, filename.length() + 1, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+	//delete sendfilename;
+	//将文件保存到发送缓冲区
+	ifstream fin(filename.c_str(), ifstream::binary);
+	if (!fin)
+	{
+		cout << "文件不存在! " << endl;
+		return 0;
+	}
+	unsigned char ch = fin.get();
+	while (fin)
+	{
+		uploadfile[filelen] = ch;
+		filelen++;
+		ch = fin.get();
+	}
+	fin.close();
 	//启动发送端
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
@@ -36,10 +62,9 @@ int main()
 		cout << "套接字错误: " << WSAGetLastError() << endl;
 		return 0;
 	}
-	int Port = 1439;
 	serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(Port);
+	serverAddr.sin_port = htons(12300);
 
 	cout << "成功启动发送端!" << endl;
 	cout << "连接到接收端..." << endl;
@@ -57,6 +82,7 @@ int main()
 		int clientlen = sizeof(clientAddr);
 		while (recvfrom(client, hsfeedback, 2, 0, (sockaddr*)&serverAddr, &clientlen) == SOCKET_ERROR)
 		{
+			//cout << "what???" << endl;
 			int overtimer = clock();
 			if (overtimer - begtimer > timeout)
 			{
@@ -75,41 +101,17 @@ int main()
 		}
 	}
 	cout << "成功连接到接收端！" << endl;
-	int time_out = 50;
-	setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (char*)&time_out, sizeof(time_out));
-	string filename;
-	cin >> filename;
-	//发送文件名
-	char* sendfilename = new char[filename.length() + 1];
-	for (int i = 0; i < filename.length(); i++)
-	{
-		sendfilename[i] = filename[i];
-	}
-	sendfilename[filename.length()] = '$';
+	int temptt = 1;
+	setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (char*)&temptt, sizeof(temptt));
 	sendto(client, sendfilename, filename.length() + 1, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
 	delete sendfilename;
-	//将文件保存到发送缓冲区
-	ifstream fin(filename.c_str(), ifstream::binary);
-	if (!fin)
-	{
-		cout << "文件不存在! " << endl;
-		return 0;
-	}
-	unsigned char ch = fin.get();
-	while (fin)
-	{
-		uploadfile[filelen] = ch;
-		filelen++;
-		ch = fin.get();
-	}
-	fin.close();
 	totpkg = filelen / datalen + (filelen % datalen != 0);
 	cout << "文件总数据包个数：" << totpkg << endl;
 	//开始发送文件
 	cout << "开始发送！" << endl;
 	int begin_send_time = clock(), finish_send_time;
 	bool status = 0;// 0 表示慢启动状态， 1 表示拥塞状态
-	int basepkgno = 0;
+	int basepkgno = 0, ackbefore = -1, currecvpkgno;
 	while (true)
 	{
 		if (!curwindow){
@@ -156,8 +158,14 @@ int main()
 			}
 			if (flag && feedback[0] == '%')
 			{
-				printf("收到接收端：第 %d 号数据包 ACK。\n", feedback[1] * 128 + feedback[2]);
-				acknum++;
+				currecvpkgno = feedback[1] * 128 + feedback[2];
+				printf("收到接收端：第 %d 号数据包 ACK。\n", currecvpkgno);
+				if (ackbefore + 1 == currecvpkgno) {
+					acknum++;
+					ackbefore++;
+				}
+				else printf("收到乱序ACK，期待确认报文号：%d，实际确认报文号：%d\n", 
+					ackbefore, currecvpkgno);
 			}
 			else if (!flag){
 				break;
@@ -170,7 +178,7 @@ int main()
 		}
 		else
 		{
-			//basepkgno = feedback;
+			basepkgno = ackbefore + 1;//累积确认之前的报文，这样避免重传整个窗口，让协议性能更高效。
 			acknum = 0;
 			curwindow = 0;
 			status = 0;
@@ -212,6 +220,7 @@ int main()
 	}
 	cout << "已断开连接" << endl;
 	closesocket(client);
+	closesocket(server);//in order to route test
 	WSACleanup();
 	return 0;
 }
